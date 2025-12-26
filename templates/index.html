@@ -17,7 +17,7 @@
             padding: 20px;
             display: flex;
             justify_content: center;
-            align-items: center;
+            align-items: flex-start; /* Changed from center to allow scrolling */
             min-height: 100vh;
         }
         .container {
@@ -35,6 +35,8 @@
             position: relative;
             transform: rotate(-1deg); /* Slight jaunty angle */
             border: 1px solid #a1887f;
+            margin-top: 20px;
+            margin-bottom: 20px;
         }
         /* "Torn" edges effect using pseudo-elements (simplified) */
         .container::before, .container::after {
@@ -139,6 +141,44 @@
             transform: rotate(-15deg);
         }
 
+        /* History Section */
+        .history {
+            margin-top: 3rem;
+            border-top: 3px double #5d4037;
+            padding-top: 2rem;
+        }
+        .history h3 {
+            font-family: 'Cinzel Decorative', cursive;
+            color: #3e2723;
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 1.5rem;
+        }
+        .history-item {
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 1px solid #a1887f;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 3px;
+        }
+        .history-original {
+            font-size: 1rem;
+            color: #5d4037;
+            font-style: italic;
+            margin-bottom: 0.5rem;
+        }
+        .history-translated {
+            font-size: 1.2rem;
+            color: #3e2723;
+            font-weight: bold;
+        }
+        .history-time {
+            font-size: 0.8rem;
+            color: #795548;
+            text-align: right;
+            margin-top: 0.5rem;
+        }
+
         /* Mobile Adjustments */
         @media (max-width: 600px) {
             .container {
@@ -171,6 +211,19 @@
         <div class="translation-box">
             "{{ translated_text }}"
         </div>
+    </div>
+    {% endif %}
+
+    {% if history %}
+    <div class="history">
+        <h3>📜 Captain's Log</h3>
+        {% for item in history %}
+        <div class="history-item">
+            <div class="history-original">"{{ item.original_text }}"</div>
+            <div class="history-translated">➡ "{{ item.translated_text }}"</div>
+            <div class="history-time">{{ item.timestamp.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        {% endfor %}
     </div>
     {% endif %}
 </div>
