@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pirate Translator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=IM+Fell+English+SC&display=swap');
+
+        body {
+            font-family: 'IM Fell English SC', serif;
+            background-color: #2e2722; /* Dark wood color */
+            background-image: repeating-linear-gradient(45deg, #3b322c 0, #3b322c 1px, #2e2722 0, #2e2722 50%);
+            background-size: 20px 20px;
+            color: #4e342e;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify_content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max_width: 600px;
+            background-color: #dcbfa5; /* Parchment base */
+            background-image: 
+                radial-gradient(circle at center, transparent 0%, #c4a484 100%),
+                url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.1'/%3E%3C/svg%3E");
+            padding: 3rem;
+            border-radius: 4px;
+            box-shadow: 
+                15px 15px 25px rgba(0, 0, 0, 0.6),
+                inset 0 0 60px rgba(101, 67, 33, 0.3); /* Inner vignette for burned edge effect */
+            position: relative;
+            transform: rotate(-1deg); /* Slight jaunty angle */
+            border: 1px solid #a1887f;
+        }
+        /* "Torn" edges effect using pseudo-elements (simplified) */
+        .container::before, .container::after {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+            border: 2px solid rgba(78, 52, 46, 0.2);
+            border-radius: 4px;
+            pointer-events: none;
+            margin: 5px;
+        }
+
+        h1 {
+            font-family: 'Cinzel Decorative', cursive;
+            text-align: center;
+            color: #3e2723;
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            text-shadow: 2px 2px 0px rgba(188, 170, 164, 0.5);
+            border-bottom: 2px solid #5d4037;
+            padding-bottom: 10px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        label {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #5d4037;
+        }
+        textarea {
+            background-color: rgba(255, 255, 255, 0.4);
+            border: 2px dashed #8d6e63;
+            color: #3e2723;
+            padding: 15px;
+            border-radius: 2px;
+            font-family: 'IM Fell English SC', serif;
+            font-size: 1.2rem;
+            resize: vertical;
+            min-height: 120px;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #5d4037;
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+        button {
+            background-color: #5d4037;
+            color: #efebe9;
+            border: 2px solid #3e2723;
+            padding: 15px;
+            font-size: 1.3rem;
+            font-family: 'Cinzel Decorative', cursive;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 3px 3px 5px rgba(0,0,0,0.3);
+            text-shadow: 1px 1px 0 #000;
+        }
+        button:hover {
+            background-color: #4e342e;
+            transform: translateY(-2px);
+            box-shadow: 4px 4px 8px rgba(0,0,0,0.4);
+        }
+        button:active {
+            transform: translateY(1px);
+        }
+        .result {
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 2px dashed #8d6e63;
+        }
+        .result h2 {
+            font-family: 'Cinzel Decorative', cursive;
+            font-size: 1.5rem;
+            color: #b71c1c; /* Red like a seal or X mark */
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        .translation-box {
+            font-family: 'IM Fell English SC', serif;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 1.5rem;
+            font-size: 1.4rem;
+            border-radius: 4px;
+            border: 2px solid #5d4037;
+            line-height: 1.6;
+            position: relative;
+        }
+        /* Add an 'X' mark decoration */
+        .translation-box::after {
+            content: '❌';
+            position: absolute;
+            bottom: -10px;
+            right: -10px;
+            font-size: 2rem;
+            color: #b71c1c;
+            opacity: 0.8;
+            transform: rotate(-15deg);
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            .container {
+                padding: 1.5rem;
+                transform: none; /* No rotation on small screens */
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            button {
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏴‍☠️ Pirate Translator</h1>
+    
+    <form method="POST">
+        <label for="text">Enter yer message, ye scallywag:</label>
+        <textarea name="text" id="text" placeholder="Scribble yer words here...">{{ original_text }}</textarea>
+        <button type="submit">Translate to Pirate!</button>
+    </form>
+
+    {% if translated_text %}
+    <div class="result">
+        <h2>Ahoy! The Captain Speaks:</h2>
+        <div class="translation-box">
+            "{{ translated_text }}"
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+</body>
+</html>
