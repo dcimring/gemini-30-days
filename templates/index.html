@@ -86,6 +86,45 @@
             border-color: #5d4037;
             background-color: rgba(255, 255, 255, 0.6);
         }
+        
+        /* File Input Styling */
+        .file-upload-wrapper {
+            position: relative;
+            border: 2px dashed #8d6e63;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.3);
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .file-upload-wrapper:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+            border-color: #5d4037;
+        }
+        .file-upload-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .file-upload-text {
+            color: #5d4037;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        #image-preview {
+            max-width: 100%;
+            max-height: 200px;
+            margin-top: 10px;
+            border: 2px solid #5d4037;
+            border-radius: 4px;
+            display: none;
+        }
+
         button {
             background-color: #5d4037;
             color: #efebe9;
@@ -197,11 +236,23 @@
 <body>
 
 <div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px dashed #8d6e63; padding-bottom: 0.5rem;">
+        <span style="font-weight: bold; color: #5d4037;">Ahoy, {{ username }}!</span>
+        <a href="{{ url_for('logout') }}" style="color: #b71c1c; text-decoration: none; font-weight: bold; font-size: 0.9rem;">Abandon Ship (Logout)</a>
+    </div>
     <h1>🏴‍☠️ Pirate Translator</h1>
     
-    <form method="POST">
-        <label for="text">Enter yer message, ye scallywag:</label>
-        <textarea name="text" id="text" placeholder="Scribble yer words here...">{{ original_text }}</textarea>
+    <form method="POST" enctype="multipart/form-data">
+        <label for="text">Enter yer message or show me a map (image):</label>
+        
+        <div class="file-upload-wrapper">
+            <span class="file-upload-text">📜 Upload Image (Click or Drag)</span>
+            <input type="file" name="file" id="file" accept="image/*" onchange="previewImage(event)">
+            <img id="image-preview" alt="Image Preview">
+        </div>
+
+        <textarea name="text" id="text" placeholder="Scribble yer words here (optional)...">{{ original_text if original_text and '[Image Uploaded]' not in original_text else '' }}</textarea>
+        
         <button type="submit">Translate to Pirate!</button>
     </form>
 
@@ -219,7 +270,7 @@
         <h3>📜 Captain's Log</h3>
         {% for item in history %}
         <div class="history-item">
-            <div class="history-original">"{{ item.original_text }}"</div>
+            <div class="history-original">{{ item.original_text }}</div>
             <div class="history-translated">➡ "{{ item.translated_text }}"</div>
             <div class="history-time">{{ item.timestamp.strftime('%Y-%m-%d %H:%M') }}</div>
         </div>
@@ -227,6 +278,29 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+    function previewImage(event) {
+        const input = event.target;
+        const preview = document.getElementById('image-preview');
+        const text = document.querySelector('.file-upload-text');
+        
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                text.textContent = "🗺️ " + input.files[0].name;
+            }
+            
+            reader.readAsDataURL(input.files[0]);
+        } else {
+            preview.style.display = 'none';
+            text.textContent = "📜 Upload Image (Click or Drag)";
+        }
+    }
+</script>
 
 </body>
 </html>
