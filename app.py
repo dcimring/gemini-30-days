@@ -135,9 +135,10 @@ def index():
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
                 
-                # Open image for Gemini
-                image = Image.open(filepath)
-                contents.append(image)
+                # Upload image to Google File API
+                uploaded_file = client.files.upload(file=filepath)
+                contents.append(uploaded_file)
+                
                 model_input = "Describe what is happening in this image as a salty pirate."
                 original_text = "[Image Uploaded]"
                 
@@ -173,10 +174,16 @@ def index():
                 db.session.add(new_translation)
                 db.session.commit()
                 
-                # Clean up uploaded file
+                # Clean up uploaded file locally and remotely
                 if file and allowed_file(file.filename):
                     if os.path.exists(filepath):
                         os.remove(filepath)
+                    try:
+                        # client.files.upload returns a File object which has a name (URI)
+                        # We should delete it to keep things clean
+                        client.files.delete(name=uploaded_file.name)
+                    except Exception as cleanup_error:
+                        print(f"Failed to delete remote file: {cleanup_error}")
 
         except Exception as e:
             translated_text = f"Arrr! The winds be against us. Error: {str(e)}"
