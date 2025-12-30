@@ -157,6 +157,32 @@
             text-transform: uppercase;
         }
 
+        /* Skeleton Loader */
+        .skeleton {
+            background-color: rgba(0,0,0,0.1);
+            color: transparent !important;
+            border-radius: 4px;
+            min-height: 20px;
+            min-width: 100px;
+            position: relative;
+            overflow: hidden;
+        }
+        .skeleton::after {
+            content: "";
+            display: block;
+            position: absolute;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            transform: translateX(-100%);
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            animation: skeleton-loading 1.5s infinite;
+        }
+
+        @keyframes skeleton-loading {
+            100% { transform: translateX(100%); }
+        }
+
         /* Input Area */
         .input-area {
             padding: 15px;
@@ -314,7 +340,8 @@
         msgDiv.className = 'message bot';
         
         const contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
+        contentDiv.className = 'message-content skeleton';
+        contentDiv.textContent = "Thinking..."; // Placeholder text
         currentBotMessageContent = contentDiv; // Save reference
         
         const timeDiv = document.createElement('div');
@@ -331,6 +358,10 @@
 
     socket.on('receive_chunk', function(data) {
         if (currentBotMessageContent) {
+            if (currentBotMessageContent.classList.contains('skeleton')) {
+                currentBotMessageContent.classList.remove('skeleton');
+                currentBotMessageContent.textContent = '';
+            }
             currentBotMessageContent.textContent += data.chunk;
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }

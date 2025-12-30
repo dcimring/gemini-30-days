@@ -20,7 +20,12 @@ app.secret_key = os.getenv("SECRET_KEY", "supersecretkey") # Change this in prod
 socketio = SocketIO(app)
 
 # Configure Database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///translations.db'
+# Use DATABASE_URL from environment if available (e.g. Heroku), otherwise local SQLite
+database_url = os.getenv("DATABASE_URL", 'sqlite:///translations.db')
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join('instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 # 16MB limit
