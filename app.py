@@ -1,3 +1,6 @@
+from gevent import monkey
+monkey.patch_all()
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -31,8 +34,8 @@ app.config['UPLOAD_FOLDER'] = os.path.join('instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 # 16MB limit
 
 # Celery Configuration (using SQLAlchemy/SQLite for zero-dependency local dev)
-app.config['CELERY_BROKER_URL'] = 'sqla+sqlite:///instance/celery_broker.sqlite'
-app.config['CELERY_RESULT_BACKEND'] = 'db+sqlite:///instance/celery_results.sqlite'
+app.config['CELERY_BROKER_URL'] = os.getenv('CELERY_BROKER_URL', 'sqla+sqlite:///instance/celery_broker.sqlite')
+app.config['CELERY_RESULT_BACKEND'] = os.getenv('CELERY_RESULT_BACKEND', 'db+sqlite:///instance/celery_results.sqlite')
 
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
@@ -221,25 +224,25 @@ def logout():
 @app.route('/', methods=['GET'])
 @login_required
 def index():
-    print("DEBUG: Index route accessed")
+    print("DEBUG: Index route accessed", flush=True)
     try:
         # Fetch history from database (newest first) for the current user
         history = Translation.query.filter_by(user_id=current_user.id).order_by(Translation.timestamp.asc()).all()
-        print(f"DEBUG: Found {len(history)} history items")
+        print(f"DEBUG: Found {len(history)} history items", flush=True)
         return render_template('index.html', history=history, username=current_user.username)
     except Exception as e:
-        print(f"DEBUG: Error in index route: {e}")
+        print(f"DEBUG: Error in index route: {e}", flush=True)
         return f"Error: {e}", 500
 
 @socketio.on('send_message')
 def handle_message(data):
-    print("DEBUG: handle_message triggered")
+    print("DEBUG: handle_message triggered", flush=True)
     if not current_user.is_authenticated:
-        print("DEBUG: User not authenticated")
+        print("DEBUG: User not authenticated", flush=True)
         return
     
     text_input = data.get('text')
-    print(f"DEBUG: Received text: {text_input}")
+    print(f"DEBUG: Received text: {text_input}", flush=True)
     
     # Simple image handling for now: just ignore socket images or support text only
     # To support images properly with sockets, we'd need base64 decoding or separate upload
@@ -271,7 +274,7 @@ def handle_message(data):
             # Strategy: Generate with stream=True. If a tool call part arrives, we won't get text chunks immediately.
             # We'll accumulate text.
             
-            print("DEBUG: Calling Gemini API")
+            print("DEBUG: Calling Gemini API", flush=True)
             response = client.models.generate_content_stream(
                 model="gemini-2.0-flash",
                 config=config,
@@ -291,7 +294,7 @@ def handle_message(data):
                         emit('receive_chunk', {'chunk': text_chunk})
                         
                     elif part.function_call:
-                        print(f"DEBUG: Tool call detected: {part.function_call.name}")
+                        print(f"DEBUG: Tool call detected: {part.function_call.name}", flush=True)
                         # Handle function call (simplified for stream - usually requires a loop)
                         # For this specific "stream=True" task, sophisticated tool handling in stream is tricky.
                         # We will execute the tool and send a NEW request (non-streaming or streaming) with the result.
@@ -344,7 +347,7 @@ def handle_message(data):
                             break 
 
             emit('stream_complete')
-            print("DEBUG: Stream complete")
+            print("DEBUG: Stream complete", flush=True)
             
             # Save to database
             new_translation = Translation(
@@ -355,10 +358,10 @@ def handle_message(data):
             )
             db.session.add(new_translation)
             db.session.commit()
-            print("DEBUG: Saved to DB")
+            print("DEBUG: Saved to DB", flush=True)
             
         except Exception as e:
-            print(f"DEBUG: Error in handle_message: {e}")
+            print(f"DEBUG: Error in handle_message: {e}", flush=True)
             emit('receive_chunk', {'chunk': f"Arrr! Something went wrong: {str(e)}"})
             emit('stream_complete')
 
