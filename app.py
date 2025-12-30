@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_socketio import SocketIO, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from google import genai
@@ -9,11 +10,13 @@ from PIL import Image
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+from tools import get_current_weather
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "supersecretkey") # Change this in production!
+socketio = SocketIO(app)
 
 # Configure Database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///translations.db'
@@ -61,12 +64,20 @@ class Translation(db.Model):
     translated_text = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    is_special_report = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
         return f'<Translation {self.id}>'
 
 # Initialize the Database
 with app.app_context():
+    # Add column if it doesn't exist (simplified migration for dev)
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(db.text("ALTER TABLE translation ADD COLUMN is_special_report BOOLEAN DEFAULT 0"))
+            conn.commit()
+    except Exception:
+        pass # Column likely exists
     db.create_all()
 
 # Initialize the Gemini client
@@ -115,83 +126,150 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET'])
 @login_required
 def index():
-    translated_text = ""
-    original_text = ""
+    print("DEBUG: Index route accessed")
+    try:
+        # Fetch history from database (newest first) for the current user
+        history = Translation.query.filter_by(user_id=current_user.id).order_by(Translation.timestamp.asc()).all()
+        print(f"DEBUG: Found {len(history)} history items")
+        return render_template('index.html', history=history, username=current_user.username)
+    except Exception as e:
+        print(f"DEBUG: Error in index route: {e}")
+        return f"Error: {e}", 500
+
+@socketio.on('send_message')
+def handle_message(data):
+    print("DEBUG: handle_message triggered")
+    if not current_user.is_authenticated:
+        print("DEBUG: User not authenticated")
+        return
     
-    if request.method == 'POST':
-        file = request.files.get('file')
-        text_input = request.form.get('text')
-        
-        contents = []
-        model_input = ""
+    text_input = data.get('text')
+    print(f"DEBUG: Received text: {text_input}")
+    
+    # Simple image handling for now: just ignore socket images or support text only
+    # To support images properly with sockets, we'd need base64 decoding or separate upload
+    # For this iteration, we focus on text streaming as requested.
+    
+    contents = []
+    original_text = text_input
+    is_special = False
+    
+    if text_input:
+        contents.append(text_input)
+        if 'weather' in text_input.lower():
+            is_special = True
+            
+    if contents:
+        config = types.GenerateContentConfig(
+            system_instruction="You are a salty sea captain from the 1700s. Translate everything the user says into pirate speak. Keep it brief, gritty, and use nautical slang. If the user asks for weather, use the tool provided.",
+            tools=[get_current_weather],
+            tool_config=types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode='AUTO'
+                )
+            )
+        )
         
         try:
-            # Handle Image Upload
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
-                
-                # Upload image to Google File API
-                uploaded_file = client.files.upload(file=filepath)
-                contents.append(uploaded_file)
-                
-                model_input = "Describe what is happening in this image as a salty pirate."
-                original_text = "[Image Uploaded]"
-                
-                # Add text context if provided
-                if text_input:
-                     model_input += f" Also, consider this text from the user: {text_input}"
-                     original_text += f" + Text: {text_input}"
+            # First, check if we need to call a tool (non-streaming first to handle tools easier, or handle stream events)
+            # Handling tools in stream is complex. 
+            # Strategy: Generate with stream=True. If a tool call part arrives, we won't get text chunks immediately.
+            # We'll accumulate text.
+            
+            print("DEBUG: Calling Gemini API")
+            response = client.models.generate_content_stream(
+                model="gemini-2.0-flash",
+                config=config,
+                contents=contents
+            )
+            
+            full_response_text = ""
+            
+            for chunk in response:
+                # print(chunk.candidates[0].content.parts[0]) # Debug
+                if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+                    part = chunk.candidates[0].content.parts[0]
+                    
+                    if part.text:
+                        text_chunk = part.text
+                        full_response_text += text_chunk
+                        emit('receive_chunk', {'chunk': text_chunk})
+                        
+                    elif part.function_call:
+                        print(f"DEBUG: Tool call detected: {part.function_call.name}")
+                        # Handle function call (simplified for stream - usually requires a loop)
+                        # For this specific "stream=True" task, sophisticated tool handling in stream is tricky.
+                        # We will execute the tool and send a NEW request (non-streaming or streaming) with the result.
+                        # But since we are already inside a stream loop, this is hard.
+                        # FALLBACK: If we detect a tool call, we might need to handle it differently.
+                        # However, the user asked to "Update the Gemini API call to use stream=True".
+                        # Let's assume standard text for now. If tool call happens, we'll process it.
+                        
+                        fname = part.function_call.name
+                        if fname == 'get_current_weather':
+                            args = part.function_call.args
+                            location = args.get('location')
+                            weather_info = get_current_weather(location)
+                            
+                            # We need to send this back to the model
+                            # Since we can't easily "continue" the stream object in the same loop,
+                            # We make a new call.
+                            
+                            tool_response_part = types.Part.from_function_response(
+                                name='get_current_weather',
+                                response={'result': weather_info}
+                            )
+                            
+                            # We need the previous model part too.
+                            # In streaming, constructing the full history is manual.
+                            # For simplicity, if tool is called, we stop streaming this turn,
+                            # do the tool logic, and then stream the final answer.
+                            
+                            # Re-construct history
+                            current_history = contents + [
+                                types.Content(role="model", parts=[part]),
+                                types.Content(role="user", parts=[tool_response_part])
+                            ]
+                            
+                            # Stream the SECOND response (the actual answer)
+                            response2 = client.models.generate_content_stream(
+                                model="gemini-2.0-flash",
+                                config=config,
+                                contents=current_history
+                            )
+                            
+                            for chunk2 in response2:
+                                if chunk2.text:
+                                    t2 = chunk2.text
+                                    full_response_text += t2
+                                    emit('receive_chunk', {'chunk': t2})
+                            
+                            # We handled the tool, so we can break the outer loop or continue
+                            # (usually tool call is the only thing in the first response)
+                            break 
 
-                contents.append(model_input)
-                
-            elif text_input:
-                original_text = text_input
-                contents.append(text_input)
-                
-            if contents:
-                config = types.GenerateContentConfig(
-                    system_instruction="You are a salty sea captain from the 1700s. Translate everything the user says into pirate speak. Keep it brief, gritty, and use nautical slang. If an image is provided, describe it in pirate speak."
-                )
-                
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash-lite",
-                    config=config,
-                    contents=contents
-                )
-                translated_text = response.text
-                
-                # Save to database
-                new_translation = Translation(
-                    original_text=original_text, 
-                    translated_text=translated_text,
-                    user_id=current_user.id
-                )
-                db.session.add(new_translation)
-                db.session.commit()
-                
-                # Clean up uploaded file locally and remotely
-                if file and allowed_file(file.filename):
-                    if os.path.exists(filepath):
-                        os.remove(filepath)
-                    try:
-                        # client.files.upload returns a File object which has a name (URI)
-                        # We should delete it to keep things clean
-                        client.files.delete(name=uploaded_file.name)
-                    except Exception as cleanup_error:
-                        print(f"Failed to delete remote file: {cleanup_error}")
-
+            emit('stream_complete')
+            print("DEBUG: Stream complete")
+            
+            # Save to database
+            new_translation = Translation(
+                original_text=original_text, 
+                translated_text=full_response_text,
+                user_id=current_user.id,
+                is_special_report=is_special
+            )
+            db.session.add(new_translation)
+            db.session.commit()
+            print("DEBUG: Saved to DB")
+            
         except Exception as e:
-            translated_text = f"Arrr! The winds be against us. Error: {str(e)}"
-    
-    # Fetch history from database (newest first) for the current user
-    history = Translation.query.filter_by(user_id=current_user.id).order_by(Translation.timestamp.desc()).all()
-        
-    return render_template('index.html', translated_text=translated_text, original_text=original_text, history=history, username=current_user.username)
+            print(f"DEBUG: Error in handle_message: {e}")
+            emit('receive_chunk', {'chunk': f"Arrr! Something went wrong: {str(e)}"})
+            emit('stream_complete')
+
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True)

@@ -4,3 +4,6 @@ google-genai
 python-dotenv
 flask-login
 Pillow
+flask-socketio
+gevent
+gevent-websocket

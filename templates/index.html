@@ -3,303 +3,343 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pirate Translator</title>
+    <title>Pirate Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=IM+Fell+English+SC&display=swap');
 
+        :root {
+            --wood-dark: #2e2722;
+            --wood-light: #3b322c;
+            --parchment: #dcbfa5;
+            --parchment-dark: #c4a484;
+            --text-color: #3e2723;
+            --accent: #b71c1c;
+            --user-bubble: #e0cca7; /* Lighter parchment */
+            --bot-bubble: #cbb292;  /* Darker parchment */
+        }
+
         body {
             font-family: 'IM Fell English SC', serif;
-            background-color: #2e2722; /* Dark wood color */
-            background-image: repeating-linear-gradient(45deg, #3b322c 0, #3b322c 1px, #2e2722 0, #2e2722 50%);
+            background-color: var(--wood-dark);
+            background-image: repeating-linear-gradient(45deg, var(--wood-light) 0, var(--wood-light) 1px, var(--wood-dark) 0, var(--wood-dark) 50%);
             background-size: 20px 20px;
-            color: #4e342e;
+            color: var(--text-color);
             margin: 0;
-            padding: 20px;
             display: flex;
             justify_content: center;
-            align-items: flex-start; /* Changed from center to allow scrolling */
-            min-height: 100vh;
-        }
-        .container {
-            width: 100%;
-            max_width: 600px;
-            background-color: #dcbfa5; /* Parchment base */
-            background-image: 
-                radial-gradient(circle at center, transparent 0%, #c4a484 100%),
-                url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.1'/%3E%3C/svg%3E");
-            padding: 3rem;
-            border-radius: 4px;
-            box-shadow: 
-                15px 15px 25px rgba(0, 0, 0, 0.6),
-                inset 0 0 60px rgba(101, 67, 33, 0.3); /* Inner vignette for burned edge effect */
-            position: relative;
-            transform: rotate(-1deg); /* Slight jaunty angle */
-            border: 1px solid #a1887f;
-            margin-top: 20px;
-            margin-bottom: 20px;
-        }
-        /* "Torn" edges effect using pseudo-elements (simplified) */
-        .container::before, .container::after {
-            content: '';
-            position: absolute;
-            top: 0; bottom: 0; left: 0; right: 0;
-            border: 2px solid rgba(78, 52, 46, 0.2);
-            border-radius: 4px;
-            pointer-events: none;
-            margin: 5px;
+            height: 100vh;
+            overflow: hidden;
         }
 
-        h1 {
-            font-family: 'Cinzel Decorative', cursive;
-            text-align: center;
-            color: #3e2723;
-            font-size: 2.5rem;
-            margin-bottom: 2rem;
-            text-shadow: 2px 2px 0px rgba(188, 170, 164, 0.5);
-            border-bottom: 2px solid #5d4037;
-            padding-bottom: 10px;
-        }
-        form {
+        .app-container {
+            width: 100%;
+            max-width: 800px;
+            background-color: var(--parchment);
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
-        }
-        label {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #5d4037;
-        }
-        textarea {
-            background-color: rgba(255, 255, 255, 0.4);
-            border: 2px dashed #8d6e63;
-            color: #3e2723;
-            padding: 15px;
-            border-radius: 2px;
-            font-family: 'IM Fell English SC', serif;
-            font-size: 1.2rem;
-            resize: vertical;
-            min-height: 120px;
-            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
-        }
-        textarea:focus {
-            outline: none;
-            border-color: #5d4037;
-            background-color: rgba(255, 255, 255, 0.6);
-        }
-        
-        /* File Input Styling */
-        .file-upload-wrapper {
             position: relative;
-            border: 2px dashed #8d6e63;
-            border-radius: 4px;
-            background-color: rgba(255, 255, 255, 0.3);
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .file-upload-wrapper:hover {
-            background-color: rgba(255, 255, 255, 0.5);
-            border-color: #5d4037;
-        }
-        .file-upload-wrapper input[type="file"] {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-        }
-        .file-upload-text {
-            color: #5d4037;
-            font-weight: bold;
-            font-size: 1.1rem;
-        }
-        #image-preview {
-            max-width: 100%;
-            max-height: 200px;
-            margin-top: 10px;
-            border: 2px solid #5d4037;
-            border-radius: 4px;
-            display: none;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            border-left: 2px solid #5d4037;
+            border-right: 2px solid #5d4037;
         }
 
-        button {
+        /* Header */
+        header {
             background-color: #5d4037;
             color: #efebe9;
-            border: 2px solid #3e2723;
             padding: 15px;
-            font-size: 1.3rem;
+            display: flex;
+            justify_content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        header h1 {
             font-family: 'Cinzel Decorative', cursive;
-            border-radius: 2px;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 3px 3px 5px rgba(0,0,0,0.3);
-            text-shadow: 1px 1px 0 #000;
-        }
-        button:hover {
-            background-color: #4e342e;
-            transform: translateY(-2px);
-            box-shadow: 4px 4px 8px rgba(0,0,0,0.4);
-        }
-        button:active {
-            transform: translateY(1px);
-        }
-        .result {
-            margin-top: 2.5rem;
-            padding-top: 1.5rem;
-            border-top: 2px dashed #8d6e63;
-        }
-        .result h2 {
-            font-family: 'Cinzel Decorative', cursive;
+            margin: 0;
             font-size: 1.5rem;
-            color: #b71c1c; /* Red like a seal or X mark */
-            margin-bottom: 1rem;
-            text-align: center;
-        }
-        .translation-box {
-            font-family: 'IM Fell English SC', serif;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 1.5rem;
-            font-size: 1.4rem;
-            border-radius: 4px;
-            border: 2px solid #5d4037;
-            line-height: 1.6;
-            position: relative;
-        }
-        /* Add an 'X' mark decoration */
-        .translation-box::after {
-            content: '❌';
-            position: absolute;
-            bottom: -10px;
-            right: -10px;
-            font-size: 2rem;
-            color: #b71c1c;
-            opacity: 0.8;
-            transform: rotate(-15deg);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        /* History Section */
-        .history {
-            margin-top: 3rem;
-            border-top: 3px double #5d4037;
-            padding-top: 2rem;
-        }
-        .history h3 {
-            font-family: 'Cinzel Decorative', cursive;
-            color: #3e2723;
-            text-align: center;
-            font-size: 1.8rem;
-            margin-bottom: 1.5rem;
-        }
-        .history-item {
-            background-color: rgba(255, 255, 255, 0.15);
-            border: 1px solid #a1887f;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border-radius: 3px;
-        }
-        .history-original {
+        .user-info {
             font-size: 1rem;
-            color: #5d4037;
-            font-style: italic;
-            margin-bottom: 0.5rem;
-        }
-        .history-translated {
-            font-size: 1.2rem;
-            color: #3e2723;
-            font-weight: bold;
-        }
-        .history-time {
-            font-size: 0.8rem;
-            color: #795548;
-            text-align: right;
-            margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
 
-        /* Mobile Adjustments */
-        @media (max-width: 600px) {
-            .container {
-                padding: 1.5rem;
-                transform: none; /* No rotation on small screens */
-            }
-            h1 {
-                font-size: 2rem;
-            }
-            button {
-                font-size: 1.1rem;
-            }
+        .logout-btn {
+            color: #ffcdd2;
+            text-decoration: none;
+            font-size: 0.9rem;
+            border: 1px solid #ffcdd2;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: all 0.2s;
         }
+        .logout-btn:hover {
+            background-color: #b71c1c;
+            color: white;
+            border-color: #b71c1c;
+        }
+
+        /* Chat Area */
+        #chat-window {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background-image: 
+                radial-gradient(circle at center, transparent 0%, rgba(101, 67, 33, 0.1) 100%),
+                url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+        }
+
+        /* Messages */
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            position: relative;
+            line-height: 1.4;
+            font-size: 1.2rem;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: #5d4037;
+            color: #efebe9;
+            border-bottom-right-radius: 2px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .message.bot {
+            align-self: flex-start;
+            background-color: rgba(255, 255, 255, 0.6);
+            border: 1px solid #a1887f;
+            border-bottom-left-radius: 2px;
+            color: #3e2723;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .message-content {
+            white-space: pre-wrap;
+        }
+
+        .timestamp {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 5px;
+            text-align: right;
+        }
+
+        .special-badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            background: #1a237e;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            font-family: sans-serif;
+            text-transform: uppercase;
+        }
+
+        /* Input Area */
+        .input-area {
+            padding: 15px;
+            background-color: rgba(93, 64, 55, 0.1);
+            border-top: 1px solid #a1887f;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        textarea {
+            flex: 1;
+            padding: 12px;
+            border-radius: 20px;
+            border: 2px solid #8d6e63;
+            background-color: rgba(255, 255, 255, 0.8);
+            font-family: 'IM Fell English SC', serif;
+            font-size: 1.1rem;
+            resize: none;
+            max-height: 100px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        textarea:focus {
+            border-color: #5d4037;
+        }
+
+        #send-btn {
+            background-color: #5d4037;
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+        #send-btn:hover {
+            background-color: #4e342e;
+            transform: scale(1.05);
+        }
+        #send-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Scrollbar */
+        #chat-window::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-window::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+        }
+        #chat-window::-webkit-scrollbar-thumb {
+            background: #8d6e63;
+            border-radius: 4px;
+        }
+
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px dashed #8d6e63; padding-bottom: 0.5rem;">
-        <span style="font-weight: bold; color: #5d4037;">Ahoy, {{ username }}!</span>
-        <a href="{{ url_for('logout') }}" style="color: #b71c1c; text-decoration: none; font-weight: bold; font-size: 0.9rem;">Abandon Ship (Logout)</a>
-    </div>
-    <h1>🏴‍☠️ Pirate Translator</h1>
-    
-    <form method="POST" enctype="multipart/form-data">
-        <label for="text">Enter yer message or show me a map (image):</label>
-        
-        <div class="file-upload-wrapper">
-            <span class="file-upload-text">📜 Upload Image (Click or Drag)</span>
-            <input type="file" name="file" id="file" accept="image/*" onchange="previewImage(event)">
-            <img id="image-preview" alt="Image Preview">
+<div class="app-container">
+    <header>
+        <h1>🏴‍☠️ Pirate Chat</h1>
+        <div class="user-info">
+            <span>Ahoy, {{ username }}!</span>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Abandon Ship</a>
         </div>
+    </header>
 
-        <textarea name="text" id="text" placeholder="Scribble yer words here (optional)...">{{ original_text if original_text and '[Image Uploaded]' not in original_text else '' }}</textarea>
-        
-        <button type="submit">Translate to Pirate!</button>
-    </form>
-
-    {% if translated_text %}
-    <div class="result">
-        <h2>Ahoy! The Captain Speaks:</h2>
-        <div class="translation-box">
-            "{{ translated_text }}"
-        </div>
-    </div>
-    {% endif %}
-
-    {% if history %}
-    <div class="history">
-        <h3>📜 Captain's Log</h3>
+    <div id="chat-window">
+        <!-- History -->
         {% for item in history %}
-        <div class="history-item">
-            <div class="history-original">{{ item.original_text }}</div>
-            <div class="history-translated">➡ "{{ item.translated_text }}"</div>
-            <div class="history-time">{{ item.timestamp.strftime('%Y-%m-%d %H:%M') }}</div>
-        </div>
+            <div class="message user">
+                <div class="message-content">{{ item.original_text }}</div>
+                <div class="timestamp">{{ item.timestamp.strftime('%H:%M') }}</div>
+            </div>
+            <div class="message bot">
+                {% if item.is_special_report %}
+                    <div class="special-badge">🌩️ Weather Report</div>
+                {% endif %}
+                <div class="message-content">{{ item.translated_text }}</div>
+                <div class="timestamp">{{ item.timestamp.strftime('%H:%M') }}</div>
+            </div>
         {% endfor %}
     </div>
-    {% endif %}
+
+    <div class="input-area">
+        <textarea id="message-input" rows="1" placeholder="Type yer message, matey..."></textarea>
+        <button id="send-btn" onclick="sendMessage()">➤</button>
+    </div>
 </div>
 
 <script>
-    function previewImage(event) {
-        const input = event.target;
-        const preview = document.getElementById('image-preview');
-        const text = document.querySelector('.file-upload-text');
-        
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                preview.src = e.target.result;
-                preview.style.display = 'block';
-                text.textContent = "🗺️ " + input.files[0].name;
-            }
-            
-            reader.readAsDataURL(input.files[0]);
-        } else {
-            preview.style.display = 'none';
-            text.textContent = "📜 Upload Image (Click or Drag)";
+    const socket = io();
+    const chatWindow = document.getElementById('chat-window');
+    const messageInput = document.getElementById('message-input');
+    let currentBotMessageContent = null;
+
+    // Auto-scroll to bottom on load
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+
+    // Handle Enter key
+    messageInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
         }
+    });
+
+    function sendMessage() {
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        // 1. Append user message immediately
+        appendMessage(text, 'user');
+        
+        // 2. Clear input
+        messageInput.value = '';
+
+        // 3. Create placeholder for bot response
+        createBotMessagePlaceholder();
+
+        // 4. Emit to server
+        socket.emit('send_message', { text: text });
     }
+
+    function appendMessage(text, type) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${type}`;
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.textContent = text;
+        
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'timestamp';
+        const now = new Date();
+        timeDiv.textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+        msgDiv.appendChild(contentDiv);
+        msgDiv.appendChild(timeDiv);
+        
+        chatWindow.appendChild(msgDiv);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    function createBotMessagePlaceholder() {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message bot';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        currentBotMessageContent = contentDiv; // Save reference
+        
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'timestamp';
+        const now = new Date();
+        timeDiv.textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+        msgDiv.appendChild(contentDiv);
+        msgDiv.appendChild(timeDiv);
+        
+        chatWindow.appendChild(msgDiv);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    socket.on('receive_chunk', function(data) {
+        if (currentBotMessageContent) {
+            currentBotMessageContent.textContent += data.chunk;
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+    });
+
+    socket.on('stream_complete', function() {
+        currentBotMessageContent = null; // Reset for next message
+    });
+
 </script>
 
 </body>
