@@ -7,3 +7,5 @@ Pillow
 flask-socketio
 gevent
 gevent-websocket
+celery
+redis

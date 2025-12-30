@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_socketio import SocketIO, emit
@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from google import genai
 from google.genai import types
 from PIL import Image
+from celery import Celery
 import os
 from dotenv import load_dotenv
 from datetime import datetime
@@ -23,6 +24,13 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///translations.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join('instance', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 # 16MB limit
+
+# Celery Configuration (using SQLAlchemy/SQLite for zero-dependency local dev)
+app.config['CELERY_BROKER_URL'] = 'sqla+sqlite:///instance/celery_broker.sqlite'
+app.config['CELERY_RESULT_BACKEND'] = 'db+sqlite:///instance/celery_results.sqlite'
+
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+celery.conf.update(app.config)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
@@ -69,6 +77,13 @@ class Translation(db.Model):
     def __repr__(self):
         return f'<Translation {self.id}>'
 
+class Essay(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    topic = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    task_id = db.Column(db.String(100), unique=True, nullable=False)
+
 # Initialize the Database
 with app.app_context():
     # Add column if it doesn't exist (simplified migration for dev)
@@ -83,6 +98,78 @@ with app.app_context():
 # Initialize the Gemini client
 # Ensure your .env file has GEMINI_API_KEY set
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+@celery.task(bind=True)
+def research_task(self, topic):
+    """
+    Background task to generate a historical pirate essay.
+    """
+    print(f"Task started: Researching {topic}")
+    
+    # Simulate a long process
+    # time.sleep(2) 
+    
+    prompt = f"Write a 5-paragraph historical essay about {topic} from the perspective of a pirate scholar. Make it informative but use pirate terminology where appropriate."
+    
+    try:
+        # We need to re-initialize client inside the worker or ensure it's safe (it usually is)
+        # But best practice for Celery is often to re-init external connections if they aren't thread/fork safe.
+        # Google GenAI client is likely safe, but let's be safe.
+        local_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        
+        response = local_client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+        essay_content = response.text
+        
+        # We need to use app_context to save to DB in a background task
+        with app.app_context():
+            new_essay = Essay(topic=topic, content=essay_content, task_id=self.request.id)
+            db.session.add(new_essay)
+            db.session.commit()
+            
+        return {'status': 'Complete', 'result': essay_content}
+    except Exception as e:
+        return {'status': 'Failed', 'error': str(e)}
+
+@app.route('/research', methods=['GET', 'POST'])
+def research():
+    if request.method == 'POST':
+        topic = request.form.get('topic')
+        if topic:
+            task = research_task.delay(topic)
+            return render_template('research_status.html', task_id=task.id, topic=topic)
+    return render_template('research.html')
+
+@app.route('/research/status/<task_id>')
+def research_status(task_id):
+    task = research_task.AsyncResult(task_id)
+    
+    if task.state == 'PENDING':
+        response = {
+            'state': task.state,
+            'status': 'Pending...'
+        }
+    elif task.state != 'FAILURE':
+        response = {
+            'state': task.state,
+            'status': task.info.get('status', '') if isinstance(task.info, dict) else '',
+            'result': task.info.get('result', '') if isinstance(task.info, dict) else ''
+        }
+        if 'result' in response and response['result']:
+             # Also try to fetch from DB to be sure
+             essay = Essay.query.filter_by(task_id=task_id).first()
+             if essay:
+                 response['result'] = essay.content
+    else:
+        # something went wrong in the background job
+        response = {
+            'state': task.state,
+            'status': str(task.info),  # this is the exception raised
+        }
+    return jsonify(response)
+
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():

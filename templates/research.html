@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pirate Research</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=IM+Fell+English+SC&display=swap');
+
+        body {
+            font-family: 'IM Fell English SC', serif;
+            background-color: #2e2722;
+            color: #dcbfa5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-image: repeating-linear-gradient(45deg, #3b322c 0, #3b322c 1px, #2e2722 0, #2e2722 50%);
+            background-size: 20px 20px;
+        }
+
+        .container {
+            background-color: #dcbfa5;
+            color: #3e2723;
+            padding: 3rem;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            border: 2px solid #5d4037;
+        }
+
+        h1 {
+            font-family: 'Cinzel Decorative', cursive;
+            margin-bottom: 2rem;
+            border-bottom: 2px dashed #5d4037;
+            padding-bottom: 10px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            background-color: rgba(255,255,255,0.5);
+            border: 2px solid #8d6e63;
+            font-family: 'IM Fell English SC', serif;
+            font-size: 1.2rem;
+            color: #3e2723;
+        }
+
+        button {
+            background-color: #5d4037;
+            color: #efebe9;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-family: 'Cinzel Decorative', cursive;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #3e2723;
+        }
+
+        .back-link {
+            display: block;
+            margin-top: 20px;
+            color: #b71c1c;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📜 Pirate Scholar</h1>
+        <p>Enter a topic, and our crew will dig up the history!</p>
+        <form method="POST">
+            <input type="text" name="topic" placeholder="e.g. Blackbeard's Treasure" required>
+            <button type="submit">Start Research</button>
+        </form>
+        <a href="/" class="back-link">← Back to Chat</a>
+    </div>
+</body>
+</html>
