@@ -112,7 +112,7 @@ def research_task(self, topic):
     """
     Background task to generate a historical pirate essay.
     """
-    print(f"Task started: Researching {topic}")
+    print(f"Task started: Researching {topic}", flush=True)
     
     # Simulate a long process
     # time.sleep(2) 
@@ -120,6 +120,7 @@ def research_task(self, topic):
     prompt = f"Write a 5-paragraph historical essay about {topic} from the perspective of a pirate scholar. Make it informative but use pirate terminology where appropriate."
     
     try:
+        print("Generating content with Gemini...", flush=True)
         # We need to re-initialize client inside the worker or ensure it's safe (it usually is)
         # But best practice for Celery is often to re-init external connections if they aren't thread/fork safe.
         # Google GenAI client is likely safe, but let's be safe.
@@ -130,15 +131,18 @@ def research_task(self, topic):
             contents=prompt
         )
         essay_content = response.text
+        print("Essay generated, saving to DB...", flush=True)
         
         # We need to use app_context to save to DB in a background task
         with app.app_context():
             new_essay = Essay(topic=topic, content=essay_content, task_id=self.request.id)
             db.session.add(new_essay)
             db.session.commit()
+            print("Saved to DB.", flush=True)
             
         return {'status': 'Complete', 'result': essay_content}
     except Exception as e:
+        print(f"Task failed: {e}", flush=True)
         return {'status': 'Failed', 'error': str(e)}
 
 @app.route('/research', methods=['GET', 'POST'])
@@ -146,13 +150,16 @@ def research():
     if request.method == 'POST':
         topic = request.form.get('topic')
         if topic:
+            print(f"DEBUG: /research POST received with topic: {topic}", flush=True)
             task = research_task.delay(topic)
+            print(f"DEBUG: Task dispatched with ID: {task.id}", flush=True)
             return render_template('research_status.html', task_id=task.id, topic=topic)
     return render_template('research.html')
 
 @app.route('/research/status/<task_id>')
 def research_status(task_id):
     task = research_task.AsyncResult(task_id)
+    print(f"DEBUG: Checking status for {task_id}. State: {task.state}", flush=True)
     
     if task.state == 'PENDING':
         response = {
