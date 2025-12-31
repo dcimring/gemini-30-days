@@ -188,9 +188,65 @@
             padding: 15px;
             background-color: rgba(93, 64, 55, 0.1);
             border-top: 1px solid #a1887f;
+        }
+
+        .chat-controls {
             display: flex;
             gap: 10px;
             align-items: flex-end;
+        }
+
+        /* Persona Toggle Switch */
+        .persona-switcher {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 1rem;
+            color: #5d4037;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #a1887f; /* Grumpy color */
+            transition: .4s;
+            border-radius: 28px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "😠";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 20px;
+            font-size: 14px;
+        }
+        input:checked + .slider {
+            background-color: #2196F3; /* Friendly color */
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px);
+            content: "😊";
         }
 
         textarea {
@@ -233,18 +289,6 @@
             transform: scale(0.95);
         }
 
-        /* Scrollbar */
-        #chat-window::-webkit-scrollbar {
-            width: 8px;
-        }
-        #chat-window::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.1);
-        }
-        #chat-window::-webkit-scrollbar-thumb {
-            background: #8d6e63;
-            border-radius: 4px;
-        }
-
     </style>
 </head>
 <body>
@@ -276,8 +320,18 @@
     </div>
 
     <div class="input-area">
-        <textarea id="message-input" rows="1" placeholder="Type yer message, matey..."></textarea>
-        <button id="send-btn" onclick="sendMessage()">➤</button>
+        <div class="persona-switcher">
+            <span>Grumpy</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="persona-toggle" checked>
+                <span class="slider"></span>
+            </label>
+            <span>Friendly</span>
+        </div>
+        <div class="chat-controls">
+            <textarea id="message-input" rows="1" placeholder="Type yer message, matey..."></textarea>
+            <button id="send-btn" onclick="sendMessage()">➤</button>
+        </div>
     </div>
 </div>
 
@@ -285,6 +339,7 @@
     const socket = io();
     const chatWindow = document.getElementById('chat-window');
     const messageInput = document.getElementById('message-input');
+    const personaToggle = document.getElementById('persona-toggle');
     let currentBotMessageContent = null;
 
     // Auto-scroll to bottom on load
@@ -311,8 +366,9 @@
         // 3. Create placeholder for bot response
         createBotMessagePlaceholder();
 
-        // 4. Emit to server
-        socket.emit('send_message', { text: text });
+        // 4. Get persona and emit to server
+        const persona = personaToggle.checked ? 'friendly' : 'grumpy';
+        socket.emit('send_message', { text: text, persona: persona });
     }
 
     function appendMessage(text, type) {

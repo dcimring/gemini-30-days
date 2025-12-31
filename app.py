@@ -145,6 +145,8 @@ def research_task(self, topic):
         print(f"Task failed: {e}", flush=True)
         return {'status': 'Failed', 'error': str(e)}
 
+
+
 @app.route('/research', methods=['GET', 'POST'])
 def research():
     if request.method == 'POST':
@@ -241,32 +243,40 @@ def index():
         print(f"DEBUG: Error in index route: {e}", flush=True)
         return f"Error: {e}", 500
 
+from pirate_config import FRIENDLY_PIRATE, GRUMPY_PIRATE
+
+# ... (rest of imports)
+
+# ... (existing app setup)
+
 @socketio.on('send_message')
 def handle_message(data):
-    print("DEBUG: handle_message triggered", flush=True)
+    print(f"DEBUG: handle_message triggered with data: {data}", flush=True)
     if not current_user.is_authenticated:
         print("DEBUG: User not authenticated", flush=True)
         return
-    
+
     text_input = data.get('text')
-    print(f"DEBUG: Received text: {text_input}", flush=True)
-    
-    # Simple image handling for now: just ignore socket images or support text only
-    # To support images properly with sockets, we'd need base64 decoding or separate upload
-    # For this iteration, we focus on text streaming as requested.
-    
+    persona = data.get('persona', 'friendly') # Default to friendly
+
+    system_instruction = FRIENDLY_PIRATE
+    if persona == 'grumpy':
+        system_instruction = GRUMPY_PIRATE
+
+    print(f"DEBUG: Received text: '{text_input}' with persona: '{persona}'", flush=True)
+
     contents = []
     original_text = text_input
     is_special = False
-    
+
     if text_input:
         contents.append(text_input)
         if 'weather' in text_input.lower():
             is_special = True
-            
+
     if contents:
         config = types.GenerateContentConfig(
-            system_instruction="You are a salty sea captain from the 1700s. Translate everything the user says into pirate speak. Keep it brief, gritty, and use nautical slang. If the user asks for weather, use the tool provided.",
+            system_instruction=system_instruction, # Use the dynamically selected instruction
             tools=[get_current_weather],
             tool_config=types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(
@@ -274,19 +284,16 @@ def handle_message(data):
                 )
             )
         )
-        
+        # ... (rest of the function)
         try:
-            # First, check if we need to call a tool (non-streaming first to handle tools easier, or handle stream events)
-            # Handling tools in stream is complex. 
-            # Strategy: Generate with stream=True. If a tool call part arrives, we won't get text chunks immediately.
-            # We'll accumulate text.
-            
             print("DEBUG: Calling Gemini API", flush=True)
             response = client.models.generate_content_stream(
                 model="gemini-2.0-flash",
                 config=config,
                 contents=contents
             )
+            # ... (rest of the try block)
+
             
             full_response_text = ""
             
