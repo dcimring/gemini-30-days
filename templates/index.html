@@ -138,6 +138,33 @@
             white-space: pre-wrap;
         }
 
+        .source-chip-container {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .source-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background-color: rgba(93, 64, 55, 0.15);
+            border: 1px solid #8d6e63;
+            border-radius: 16px;
+            padding: 4px 10px;
+            font-size: 0.8rem;
+            color: #3e2723;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+        .source-chip:hover {
+            background-color: rgba(93, 64, 55, 0.3);
+        }
+        .source-chip .icon {
+            font-size: 1rem;
+        }
+
         .timestamp {
             font-size: 0.7rem;
             opacity: 0.7;
@@ -426,6 +453,39 @@
     socket.on('stream_complete', function() {
         currentBotMessageContent = null; // Reset for next message
     });
+
+    socket.on('receive_sources', function(data) {
+        if (currentBotMessageContent && data.sources) {
+            const parentMessage = currentBotMessageContent.parentElement;
+            
+            let chipContainer = parentMessage.querySelector('.source-chip-container');
+            if (!chipContainer) {
+                chipContainer = document.createElement('div');
+                chipContainer.className = 'source-chip-container';
+                parentMessage.appendChild(chipContainer);
+            }
+
+            data.sources.forEach(source => {
+                const chip = document.createElement('a');
+                chip.className = 'source-chip';
+                chip.href = source.uri;
+                chip.target = '_blank';
+                chip.rel = 'noopener noreferrer';
+                
+                const icon = document.createElement('span');
+                icon.className = 'icon';
+                icon.textContent = '🔗';
+                
+                const title = document.createElement('span');
+                title.textContent = source.title;
+
+                chip.appendChild(icon);
+                chip.appendChild(title);
+                chipContainer.appendChild(chip);
+            });
+        }
+    });
+
 
 </script>
 

@@ -275,16 +275,20 @@ def handle_message(data):
             is_special = True
 
     if contents:
+        # Define the tools based on the user's example
+        grounding_tool = types.Tool(google_search=types.GoogleSearch())
+        all_tools = [grounding_tool]
+
         config = types.GenerateContentConfig(
-            system_instruction=system_instruction, # Use the dynamically selected instruction
-            tools=[get_current_weather],
+            system_instruction=system_instruction,
+            tools=all_tools,
             tool_config=types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(
                     mode='AUTO'
                 )
             )
         )
-        # ... (rest of the function)
+        
         try:
             print("DEBUG: Calling Gemini API", flush=True)
             response = client.models.generate_content_stream(
@@ -292,13 +296,18 @@ def handle_message(data):
                 config=config,
                 contents=contents
             )
-            # ... (rest of the try block)
-
             
             full_response_text = ""
+            sources = []
             
             for chunk in response:
-                # print(chunk.candidates[0].content.parts[0]) # Debug
+                # Safely check for grounding metadata
+                if hasattr(chunk, "grounding_metadata") and chunk.grounding_metadata:
+                    for source in chunk.grounding_metadata:
+                         # Ensure we don't add duplicate sources
+                        if source not in sources:
+                            sources.append(source)
+
                 if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
                     part = chunk.candidates[0].content.parts[0]
                     
@@ -309,41 +318,22 @@ def handle_message(data):
                         
                     elif part.function_call:
                         print(f"DEBUG: Tool call detected: {part.function_call.name}", flush=True)
-                        # Handle function call (simplified for stream - usually requires a loop)
-                        # For this specific "stream=True" task, sophisticated tool handling in stream is tricky.
-                        # We will execute the tool and send a NEW request (non-streaming or streaming) with the result.
-                        # But since we are already inside a stream loop, this is hard.
-                        # FALLBACK: If we detect a tool call, we might need to handle it differently.
-                        # However, the user asked to "Update the Gemini API call to use stream=True".
-                        # Let's assume standard text for now. If tool call happens, we'll process it.
-                        
                         fname = part.function_call.name
                         if fname == 'get_current_weather':
                             args = part.function_call.args
                             location = args.get('location')
                             weather_info = get_current_weather(location)
                             
-                            # We need to send this back to the model
-                            # Since we can't easily "continue" the stream object in the same loop,
-                            # We make a new call.
-                            
                             tool_response_part = types.Part.from_function_response(
                                 name='get_current_weather',
                                 response={'result': weather_info}
                             )
                             
-                            # We need the previous model part too.
-                            # In streaming, constructing the full history is manual.
-                            # For simplicity, if tool is called, we stop streaming this turn,
-                            # do the tool logic, and then stream the final answer.
-                            
-                            # Re-construct history
                             current_history = contents + [
                                 types.Content(role="model", parts=[part]),
                                 types.Content(role="user", parts=[tool_response_part])
                             ]
                             
-                            # Stream the SECOND response (the actual answer)
                             response2 = client.models.generate_content_stream(
                                 model="gemini-2.0-flash",
                                 config=config,
@@ -355,13 +345,18 @@ def handle_message(data):
                                     t2 = chunk2.text
                                     full_response_text += t2
                                     emit('receive_chunk', {'chunk': t2})
-                            
-                            # We handled the tool, so we can break the outer loop or continue
-                            # (usually tool call is the only thing in the first response)
                             break 
 
             emit('stream_complete')
             print("DEBUG: Stream complete", flush=True)
+
+            if sources:
+                print(f"DEBUG: Found sources: {sources}", flush=True)
+                serializable_sources = [
+                    {'uri': s.web_uri, 'title': s.title} for s in sources if hasattr(s, 'web_uri') and s.web_uri
+                ]
+                if serializable_sources:
+                    emit('receive_sources', {'sources': serializable_sources})
             
             # Save to database
             new_translation = Translation(
